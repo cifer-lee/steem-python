@@ -95,7 +95,9 @@ class Blockchain(object):
         You can choose to yield lists of operations, batched to contain 
         all operations for each block with ``batch_operations=True``.
         You can also yield full blocks instead, with ``full_blocks=True``.
-        
+
+        This generator behaves same as `stream_from` except won't blocking your thread
+
         Args:
             start_block (int): Block to start with. If not provided, current (head) block is used.
             end_block (int): Stop iterating at this block. If not provided, this generator will run forever (streaming mode).
