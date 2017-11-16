@@ -88,6 +88,40 @@ class Blockchain(object):
             start_block = head_block + 1
             time.sleep(block_interval)
 
+    def stream_from_nonblock(self, start_block=None, end_block=None, batch_operations=False, full_blocks=False, **kwargs):
+        """ This call yields raw blocks or operations depending on ``full_blocks`` param.
+        
+        By default, this generator will yield operations, one by one.
+        You can choose to yield lists of operations, batched to contain 
+        all operations for each block with ``batch_operations=True``.
+        You can also yield full blocks instead, with ``full_blocks=True``.
+        
+        Args:
+            start_block (int): Block to start with. If not provided, current (head) block is used.
+            end_block (int): Stop iterating at this block. If not provided, this generator will run forever (streaming mode).
+            batch_operations (bool): (Defaults to False) Rather than yielding operations one by one, 
+                yield a list of all operations for each block.
+            full_blocks (bool): (Defaults to False) Rather than yielding operations, return raw, unedited blocks as 
+                provided by steemd. This mode will NOT include virtual operations.
+        """
+
+        _ = kwargs  # we need this
+
+        if not start_block:
+            start_block = self.get_current_block_num()
+
+        head_block = self.get_current_block_num()
+        for block_num in range(start_block, head_block + 1):
+            if end_block and block_num > end_block:
+                raise StopIteration("Reached stop block at: #%s" % end_block)
+
+            if full_blocks:
+                yield self.steem.get_block(block_num)
+            elif batch_operations:
+                yield self.steem.get_ops_in_block(block_num, False)
+            else:
+                yield from self.steem.get_ops_in_block(block_num, False)
+
 
     def reliable_stream(self, start_block=None, block_interval=None, update_interval=False, batch_operations=False, full_blocks=False, timeout=None, **kwargs):
         """ A version of stream_from() intended for use in services that NEED reliable (nonstop) streaming
@@ -165,7 +199,7 @@ class Blockchain(object):
            start_block = head_block + 1
 
 
-    def stream(self, filter_by: Union[str, list] = list(), *args, **kwargs):
+    def stream(self, filter_by: Union[str, list] = list(), nonblock = False, *args, **kwargs):
         """ Yield a stream of operations, starting with current head block.
 
             Args:
@@ -174,7 +208,12 @@ class Blockchain(object):
         if isinstance(filter_by, str):
             filter_by = [filter_by]
 
-        for ops in self.stream_from(*args, **kwargs):
+        if nonblock == True:
+            streams = self.stream_from_nonblock(*args, **kwargs)
+        else:
+            streams = self.stream_from(*args, **kwargs)
+
+        for ops in streams:
 
             # deal with different self.stream_from() outputs
             events = ops
